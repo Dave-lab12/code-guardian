@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  starscream:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./contents:/contents
+      - starscream_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  starscream-dev:
+    build:
+      context: .
+      target: builder
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: [ "bun", "run", "--hot", "src/index.ts" ]
+    profiles:
+      - dev
+
+volumes:
+  starscream_data:

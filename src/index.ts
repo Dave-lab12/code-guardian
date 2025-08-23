@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+
 import { Config } from './config/config';
+import { githubAuth } from './middleware/auth';
 
 import { ChunkSearcher, CodeReviewer, OpenAIEmbedder, Parser, PromptLoader, IntegrityChecker } from './lib'
 
@@ -9,8 +11,11 @@ const app = new Hono()
 
 app.use('*', cors());
 app.use('*', logger());
+app.use('*', githubAuth);
 
 app.get('/', async (c) => {
+  const isDev = Bun.env.NODE_ENV === 'development';
+  console.log(`${isDev ? 'Development' : 'Production'} environment detected ${isDev}`);
   return c.json({
     status: 'healthy',
     service: 'Code Review API',
@@ -21,7 +26,7 @@ app.get('/', async (c) => {
 
 app.post('/update-codebase', async (c) => {
   try {
-    console.log('🔄 Starting codebase update...')
+    console.log('Starting codebase update...')
     const body = await c.req.json();
     const { targetDirectory = '/contents/mindplex' } = body;
 
@@ -34,7 +39,7 @@ app.post('/update-codebase', async (c) => {
     const integrityChecker = new IntegrityChecker();
     const integrityReport = await integrityChecker.checkIntegrity();
 
-    console.log('✅ Codebase updated and embedded successfully!')
+    console.log('Codebase updated and embedded successfully!')
 
     return c.json({
       success: true,
@@ -48,7 +53,7 @@ app.post('/update-codebase', async (c) => {
     });
 
   } catch (error) {
-    console.error('❌ Error updating codebase:', error)
+    console.error('Error updating codebase:', error)
     return c.json({
       success: false,
       error: 'Failed to update codebase',
@@ -57,15 +62,38 @@ app.post('/update-codebase', async (c) => {
   }
 })
 
-app.post('/review-pr', async (c) => {
+app.post('/review', async (c) => {
   try {
     const body = await c.req.json();
-    const { changedCode, description, fileName } = body;
+    const { changedCode, description, fileName, files } = body;
 
-    if (!changedCode) {
+    let codeToReview = '';
+    let fileNames = [];
+
+    if (files && Array.isArray(files)) {
+      fileNames = files.map(f => f.fileName);
+      codeToReview = files.map(f =>
+        `\n=== File: ${f.fileName} ===\n${f.changedCode}`
+      ).join('\n\n');
+
+      console.log(`Processing PR review for ${files.length} files`);
+    } else if (changedCode) {
+
+      codeToReview = changedCode;
+      fileNames = [fileName || 'Unknown'];
+
+      console.log(`Processing PR review for: ${fileName}`);
+    } else {
       return c.json({
         success: false,
-        error: 'changedCode is required'
+        error: 'No code to review. Provide either "files" array or "changedCode"'
+      }, 400);
+    }
+
+    if (!codeToReview) {
+      return c.json({
+        success: false,
+        error: 'No code changes found'
       }, 400);
     }
 
@@ -120,7 +148,3 @@ app.post('/review-pr', async (c) => {
 })
 
 export default app
-
-
-// accept the new codebase and embed the new codebase 
-// review pr and give feedback
