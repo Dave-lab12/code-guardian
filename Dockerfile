@@ -1,5 +1,8 @@
 FROM oven/bun:1 AS builder
 
+RUN apt update
+RUN apt install -y git
+
 WORKDIR /app
 
 COPY package.json ./
@@ -9,7 +12,11 @@ RUN bun install --frozen-lockfile
 
 COPY . .
 
-FROM oven/bun:1-slim AS production
+FROM oven/bun:1 AS production
+
+
+RUN apt update
+RUN apt install -y git
 
 WORKDIR /app
 
@@ -19,7 +26,6 @@ COPY bun.lockb* ./
 RUN bun install --frozen-lockfile --production
 
 COPY --from=builder /app .
-
 
 EXPOSE 3000
 

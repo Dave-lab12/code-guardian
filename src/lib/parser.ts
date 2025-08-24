@@ -15,10 +15,9 @@ export class Parser {
     async chunkCodebase(targetDir: string): Promise<BaseChunk[]> {
         this.jsonSchema = [];
         const appConfig = this.config.get();
-        const path = this.config.getFullPath(appConfig.paths.codebaseRoot, targetDir);
         const fileTypes = appConfig.parsing.supportedFileTypes;
 
-        const glob = new Glob(`${path}/**/*.{${fileTypes.join(',')}}`);
+        const glob = new Glob(`${targetDir}/**/*.{${fileTypes.join(',')}}`);
 
         for await (const file of glob.scan(".")) {
             await this.processFile(file);

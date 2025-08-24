@@ -5,7 +5,7 @@ import { logger } from 'hono/logger';
 import { Config } from './config/config';
 import { githubAuth } from './middleware/auth';
 
-import { ChunkSearcher, CodeReviewer, OpenAIEmbedder, Parser, PromptLoader, IntegrityChecker } from './lib'
+import { ChunkSearcher, CodeReviewer, PromptLoader, IntegrityChecker, GitUpdater } from './lib'
 
 const app = new Hono()
 
@@ -14,8 +14,6 @@ app.use('*', logger());
 app.use('*', githubAuth);
 
 app.get('/', async (c) => {
-  const isDev = Bun.env.NODE_ENV === 'development';
-  console.log(`${isDev ? 'Development' : 'Production'} environment detected ${isDev}`);
   return c.json({
     status: 'healthy',
     service: 'Code Review API',
@@ -26,41 +24,40 @@ app.get('/', async (c) => {
 
 app.post('/update-codebase', async (c) => {
   try {
-    console.log('Starting codebase update...')
     const body = await c.req.json();
-    const { targetDirectory = '/contents/mindplex' } = body;
+    const { repoUrl, branch = 'main', token } = body;
 
-    const parser = new Parser();
-    await parser.chunkCodebase(targetDirectory);
+    if (!repoUrl) {
+      return c.json({ success: false, error: 'repoUrl is required' }, 400);
+    }
 
-    const embedder = new OpenAIEmbedder()
-    await embedder.embedAllChunks()
+    const updater = new GitUpdater();
+    const accessToken = token || Bun.env.GITHUB_ACCESS_TOKEN
+    const result = await updater.updateFromGit(repoUrl, branch, accessToken);
 
     const integrityChecker = new IntegrityChecker();
     const integrityReport = await integrityChecker.checkIntegrity();
 
-    console.log('Codebase updated and embedded successfully!')
-
     return c.json({
       success: true,
-      message: 'Codebase updated and embedded successfully',
+      message: 'Codebase updated successfully',
       stats: {
         validChunks: integrityReport.validChunks.length,
         missingContent: integrityReport.missingContent.length,
         orphanedFiles: integrityReport.orphanedFiles.length
       },
+      ...result,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('Error updating codebase:', error)
+    console.error('❌ Error:', error);
     return c.json({
       success: false,
-      error: 'Failed to update codebase',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Failed to update codebase'
     }, 500);
   }
-})
+});
 
 app.post('/review', async (c) => {
   try {
