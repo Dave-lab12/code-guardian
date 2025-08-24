@@ -5,6 +5,8 @@ export interface AppConfig {
     schemaFile: string;
     embeddingsFile: string;
     promptsDir: string;
+    tempDir: string;
+
   };
   parsing: {
     supportedFileTypes: string[];
@@ -27,7 +29,9 @@ export class Config {
         chunksDir: process.env.CHUNKS_DIR || 'src/contents/mindplex-chunks',
         schemaFile: process.env.SCHEMA_FILE || 'schema.json',
         embeddingsFile: process.env.EMBEDDINGS_FILE || 'embeddings.json',
-        promptsDir: process.env.PROMPTS_DIR || 'src/prompts'
+        promptsDir: process.env.PROMPTS_DIR || 'src/prompts',
+        tempDir: process.env.TEMP_DIR || process.env.RUNNER_TEMP || '/tmp'
+
       },
       parsing: {
         supportedFileTypes: ['ts', 'svelte', 'js', 'json', 'css', 'html', 'md', 'txt', 'yml']

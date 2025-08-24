@@ -118,7 +118,7 @@ app.post('/review', async (c) => {
     const prompt = await PromptLoader.loadPrompt(promptPath, {
       fileName: fileName || 'Unknown file',
       description: description || 'No description provided',
-      changedCode: changedCode,
+      changedCode: codeToReview,
       context: contextString
     });
     const review = await reviewer.generateReview(prompt);
