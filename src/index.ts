@@ -98,7 +98,7 @@ app.post('/review', async (c) => {
     await searcher.init();
 
     console.log('Finding relevant code context...')
-    const relevantChunks = await searcher.findSimilarChunks(changedCode, 5);
+    const relevantChunks = await searcher.findSimilarChunks(codeToReview, 5);
 
 
     for (const chunk of relevantChunks) {
