@@ -22,10 +22,105 @@ export class Parser {
         for await (const file of glob.scan(".")) {
             await this.processFile(file);
         }
+        await this.processKnowledgeFiles();
 
         await this.saveSchema();
         console.log(`✅ Codebase chunking completed. Total chunks: ${this.jsonSchema.length}`);
         return this.jsonSchema;
+    }
+
+    private async processKnowledgeFiles(): Promise<void> {
+        const appConfig = this.config.get();
+        const promptsDir = appConfig.paths.promptsDir;
+
+        const knowledgeFiles = [
+            'svelte5.txt'
+        ];
+
+        for (const filename of knowledgeFiles) {
+            const filePath = this.config.getFullPath(promptsDir, filename);
+
+            try {
+                const fileExists = await Bun.file(filePath).exists();
+                if (fileExists) {
+                    console.log(`Processing knowledge file: ${filename}`);
+                    await this.parseLlmsTxt(filePath, filename);
+                } else {
+                    console.log(`Knowledge file not found: ${filePath}`);
+                }
+            } catch (error) {
+                console.error(`Failed to process knowledge file ${filename}:`, error);
+            }
+        }
+    }
+
+    private async parseLlmsTxt(filePath: string, filename: string): Promise<void> {
+        try {
+            const fileContent = await Bun.file(filePath).text();
+            const sections = fileContent.split(/\n## /).filter(section => section.trim());
+
+            if (sections.length <= 1) {
+                const singleSections = fileContent.split(/\n# /).filter(section => section.trim());
+
+                if (singleSections.length <= 1) {
+                    const chunk: BaseChunk = {
+                        id: hash(`knowledge:${filename}`),
+                        type: 'documentation',
+                        hash: hash(fileContent),
+                        granularity: 'file'
+                    };
+
+                    await this.addChunk(chunk, fileContent);
+                    console.log(`Created single knowledge chunk: ${filename}`);
+                    return;
+                } else {
+
+                    await this.processHeaderSections(singleSections, filePath, filename, '#');
+                    return;
+                }
+            }
+
+            await this.processHeaderSections(sections, filePath, filename, '##');
+
+            console.log(`Parsed knowledge file: ${filename} (${sections.length} sections)`);
+
+        } catch (error) {
+            console.error(`Failed to parse knowledge file ${filePath}:`, error);
+        }
+    }
+
+    private async processHeaderSections(
+        sections: string[],
+        filePath: string,
+        filename: string,
+        headerPrefix: string
+    ): Promise<void> {
+        for (let i = 0; i < sections.length; i++) {
+            const section = sections[i];
+            const lines = section.split('\n');
+
+            let title: string;
+            let content: string;
+
+            if (i === 0 && !section.startsWith('#')) {
+                const firstHeaderMatch = section.match(/^#+\s*(.+)/);
+                title = firstHeaderMatch ? firstHeaderMatch[1] : 'Introduction';
+                content = section;
+            } else {
+                title = lines[0].replace(/^#+\s*/, '').trim();
+                content = `${headerPrefix} ${title}\n${lines.slice(1).join('\n')}`;
+            }
+
+            const chunk: BaseChunk = {
+                id: hash(`knowledge:${filename}:${title}`),
+                type: 'documentation',
+                hash: hash(content),
+                granularity: 'component'
+            };
+
+            await this.addChunk(chunk, content);
+            console.log(`  Found knowledge section: ${title}`);
+        }
     }
 
     private async processFile(file: string): Promise<void> {
@@ -287,10 +382,3 @@ export class Parser {
         }
     }
 }
-// (async () => {x
-
-// const parser = new Parser();
-// const integrityChecker = new IntegrityChecker();
-// await parser.chunkCodebase('/contents/mindplex')
-// await integrityChecker.checkIntegrity('/contents/mindplex-chunks')
-// })
