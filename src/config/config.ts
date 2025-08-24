@@ -26,7 +26,7 @@ export class Config {
     this.config = {
       paths: {
         codebaseRoot: process.env.CODEBASE_ROOT || process.cwd(),
-        chunksDir: process.env.CHUNKS_DIR || 'src/contents/mindplex-chunks',
+        chunksDir: process.env.CHUNKS_DIR || 'contents/mindplex-chunks',
         schemaFile: process.env.SCHEMA_FILE || 'schema.json',
         embeddingsFile: process.env.EMBEDDINGS_FILE || 'embeddings.json',
         promptsDir: process.env.PROMPTS_DIR || 'src/prompts',
