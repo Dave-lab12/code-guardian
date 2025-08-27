@@ -5,7 +5,7 @@ import { logger } from 'hono/logger';
 import { Config } from './config/config';
 import { githubAuth } from './middleware/auth';
 
-import { ChunkSearcher, CodeReviewer, PromptLoader, GitClient, Parser } from './lib'
+import { CodeReviewer, PromptLoader, Parser } from './lib'
 import { ChromaManager } from './lib/chroma';
 import { SvelteKitParser, sveltekitPatterns } from './frameworks/sveltekit';
 
@@ -99,16 +99,11 @@ app.post('/review', async (c) => {
       }, 400);
     }
 
-    const searcher = new ChunkSearcher();
-    await searcher.init();
-
     console.log('Finding relevant code context...')
-    const relevantChunks = await searcher.findSimilarChunks(codeToReview, 5);
 
-
-    for (const chunk of relevantChunks) {
-      chunk.content = await searcher.getChunkContent(chunk.hash);
-    }
+    const chromaManager = new ChromaManager();
+    await chromaManager.initializeCollection();
+    const relevantChunks = await chromaManager.queryChunks(codeToReview, 10);
 
     const reviewer = new CodeReviewer();
     const contextString = reviewer.formatContext(relevantChunks);

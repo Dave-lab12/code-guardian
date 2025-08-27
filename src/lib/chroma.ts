@@ -8,6 +8,7 @@ export class ChromaManager {
     private client: ChromaClient;
     private collection: Collection | null = null;
     private embeddingFunction: OpenAIEmbeddingFunction;
+
     constructor() {
         this.embeddingFunction = new OpenAIEmbeddingFunction({
             apiKey: Bun.env.OPENAI_API_KEY,
@@ -71,17 +72,39 @@ export class ChromaManager {
         console.log(`Successfully stored all ${chunks.length} chunks in ChromaDB.`);
     }
 
-    async queryChunks(query: string, nResults: number = 5, where?: any): Promise<any> {
+    async queryChunks(query: string, nResults: number = 5, where?: any): Promise<any[]> {
         if (!this.collection) {
             throw new Error('Collection not initialized');
         }
 
-        return await this.collection.query({
+        const rawChromaResult = await this.collection.query({
             queryTexts: [query],
             nResults,
             where
         });
+
+        if (!rawChromaResult || !rawChromaResult.ids || rawChromaResult.ids.length === 0) {
+            return [];
+        }
+
+        return rawChromaResult.ids[0].map((id, index) => ({
+            id: id,
+            content: rawChromaResult.documents[0][index],
+            ...rawChromaResult.metadatas[0][index],
+            similarity: 1 - rawChromaResult?.distances?.[0]?.[index]
+        }));
     }
+    // async queryChunks(query: string, nResults: number = 5, where?: any): Promise<any> {
+    //     if (!this.collection) {
+    //         throw new Error('Collection not initialized');
+    //     }
+
+    //     return await this.collection.query({
+    //         queryTexts: [query],
+    //         nResults,
+    //         where
+    //     });
+    // }
 
     async clearCollection(): Promise<void> {
         if (!this.collection) return;

@@ -1,6 +1,5 @@
 # deps
 node_modules/
-
 .env
-
 contents
+temp
