@@ -5,7 +5,9 @@ import { logger } from 'hono/logger';
 import { Config } from './config/config';
 import { githubAuth } from './middleware/auth';
 
-import { ChunkSearcher, CodeReviewer, PromptLoader, IntegrityChecker, GitUpdater } from './lib'
+import { ChunkSearcher, CodeReviewer, PromptLoader, GitClient, Parser } from './lib'
+import { ChromaManager } from './lib/chroma';
+import { SvelteKitParser, sveltekitPatterns } from './frameworks/sveltekit';
 
 const app = new Hono()
 
@@ -31,22 +33,25 @@ app.post('/update-codebase', async (c) => {
       return c.json({ success: false, error: 'repoUrl is required' }, 400);
     }
 
-    const updater = new GitUpdater();
-    const accessToken = token || Bun.env.GITHUB_ACCESS_TOKEN
-    const result = await updater.updateFromGit(repoUrl, branch, accessToken);
+    // const gitClient = new GitClient();
+    // const accessToken = token || Bun.env.GITHUB_ACCESS_TOKEN
+    // const repoPath = await gitClient.cloneRepository(repoUrl, branch, accessToken);
 
-    const integrityChecker = new IntegrityChecker();
-    const integrityReport = await integrityChecker.checkIntegrity();
+    const chromaManager = new ChromaManager();
+    await chromaManager.initializeCollection();
+    await chromaManager.clearCollection();
+
+    const parser = new Parser(chromaManager);
+
+    parser.register(sveltekitPatterns, new SvelteKitParser())
+
+    const chunksCreated = await parser.chunkCodebase("/app/tmp/repo-1756205646640")//repoPath);
+
+    console.log(`Chunks created: ${chunksCreated}`);
 
     return c.json({
       success: true,
       message: 'Codebase updated successfully',
-      stats: {
-        validChunks: integrityReport.validChunks.length,
-        missingContent: integrityReport.missingContent.length,
-        orphanedFiles: integrityReport.orphanedFiles.length
-      },
-      ...result,
       timestamp: new Date().toISOString()
     });
 
