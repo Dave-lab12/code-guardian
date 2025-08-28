@@ -5,7 +5,9 @@ import { logger } from 'hono/logger';
 import { Config } from './config/config';
 import { githubAuth } from './middleware/auth';
 
-import { ChunkSearcher, CodeReviewer, PromptLoader, IntegrityChecker, GitUpdater } from './lib'
+import { CodeReviewer, PromptLoader, Parser, GitClient } from './lib'
+import { ChromaManager } from './lib/chroma';
+import { SvelteKitParser, sveltekitPatterns } from './frameworks/sveltekit';
 
 const app = new Hono()
 
@@ -26,32 +28,39 @@ app.post('/update-codebase', async (c) => {
   try {
     const body = await c.req.json();
     const { repoUrl, branch = 'main', token } = body;
-
+    const config = Config.getInstance();
     if (!repoUrl) {
       return c.json({ success: false, error: 'repoUrl is required' }, 400);
     }
 
-    const updater = new GitUpdater();
+    const gitClient = new GitClient();
     const accessToken = token || Bun.env.GITHUB_ACCESS_TOKEN
-    const result = await updater.updateFromGit(repoUrl, branch, accessToken);
+    const repoPath = await gitClient.cloneRepository(repoUrl, branch, accessToken);
 
-    const integrityChecker = new IntegrityChecker();
-    const integrityReport = await integrityChecker.checkIntegrity();
+    const chromaManager = new ChromaManager();
+    await chromaManager.initializeCollection();
+    await chromaManager.clearCollection();
+
+    const parser = new Parser(chromaManager);
+
+    parser.register(sveltekitPatterns, new SvelteKitParser(), {
+      knowledge: [
+        `${config.get().paths.promptsDir}/svelte5.txt`
+      ]
+    })
+
+    const chunksCreated = await parser.chunkCodebase(repoPath)
+
+    console.log(`Chunks created: ${chunksCreated}`);
 
     return c.json({
       success: true,
       message: 'Codebase updated successfully',
-      stats: {
-        validChunks: integrityReport.validChunks.length,
-        missingContent: integrityReport.missingContent.length,
-        orphanedFiles: integrityReport.orphanedFiles.length
-      },
-      ...result,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('Error:', error);
     return c.json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to update codebase'
@@ -94,16 +103,11 @@ app.post('/review', async (c) => {
       }, 400);
     }
 
-    const searcher = new ChunkSearcher();
-    await searcher.init();
-
     console.log('Finding relevant code context...')
-    const relevantChunks = await searcher.findSimilarChunks(codeToReview, 5);
 
-
-    for (const chunk of relevantChunks) {
-      chunk.content = await searcher.getChunkContent(chunk.hash);
-    }
+    const chromaManager = new ChromaManager();
+    await chromaManager.initializeCollection();
+    const relevantChunks = await chromaManager.queryChunks(codeToReview, 10);
 
     const reviewer = new CodeReviewer();
     const contextString = reviewer.formatContext(relevantChunks);

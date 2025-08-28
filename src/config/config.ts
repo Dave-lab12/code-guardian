@@ -37,7 +37,7 @@ export class Config {
         supportedFileTypes: ['ts', 'svelte', 'js', 'json', 'css', 'html', 'md', 'txt', 'yml']
       },
       embedding: {
-        model: 'text-embedding-3-small',
+        model: Bun.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
         batchSize: 100,
         rateLimitDelay: 1000
       }

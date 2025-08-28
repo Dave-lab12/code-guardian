@@ -25,15 +25,15 @@ export class CodeReviewer {
 
         try {
             const response = await this.ai.models.generateContent({
-                model: "gemini-2.5-flash",
+                model: Bun.env.GOOGLE_MODEL || 'gemini-2.5-flash',
                 contents: prompt,
             });
 
             const reviewText = response.text || 'No review generated';
-            console.log("✅ Review generated successfully");
+            console.log("Review generated successfully");
             return reviewText;
         } catch (error) {
-            console.error("❌ Error generating review:", error);
+            console.error("Error generating review:", error);
             throw new Error('Failed to generate review');
         }
     }
