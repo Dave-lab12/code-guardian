@@ -5,7 +5,7 @@ import { logger } from 'hono/logger';
 import { Config } from './config/config';
 import { githubAuth } from './middleware/auth';
 
-import { CodeReviewer, PromptLoader, Parser, GitClient } from './lib'
+import { CodeReviewer, PromptLoader, Parser, GitClient, AssistantService } from './lib'
 import { ChromaManager } from './lib/chroma';
 import { SvelteKitParser, sveltekitPatterns } from './frameworks/sveltekit';
 
@@ -33,9 +33,9 @@ app.post('/update-codebase', async (c) => {
       return c.json({ success: false, error: 'repoUrl is required' }, 400);
     }
 
-    const gitClient = new GitClient();
     const accessToken = token || Bun.env.GITHUB_ACCESS_TOKEN
-    const repoPath = await gitClient.cloneRepository(repoUrl, branch, accessToken);
+    const gitClient = new GitClient(accessToken);
+    const repoPath = await gitClient.cloneRepository(repoUrl, branch);
 
     const chromaManager = new ChromaManager();
     await chromaManager.initializeCollection();
@@ -60,6 +60,7 @@ app.post('/update-codebase', async (c) => {
     });
 
   } catch (error) {
+
     console.error('Error:', error);
     return c.json({
       success: false,
@@ -147,5 +148,30 @@ app.post('/review', async (c) => {
     }, 500)
   }
 })
+
+app.post('/webhook', async (c) => {
+  try {
+    const event = c.req.header('x-github-event');
+    const body = await c.req.json();
+
+    console.log(`GitHub webhook: ${event}`);
+
+    if (event === 'issue_comment' && body.action === 'created') {
+      const comment = body.comment.body;
+      const mention = comment.match(/@(\w+)\s+(.+)/);
+
+      if (mention && mention[1] === 'starscream') {
+        const command = mention[2];
+        const assistant = new AssistantService();
+        await assistant.processCommand(command, body);
+      }
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return c.json({ error: 'Webhook failed' }, 500);
+  }
+});
 
 export default app
