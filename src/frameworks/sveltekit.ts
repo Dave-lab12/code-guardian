@@ -223,5 +223,3 @@ export class SvelteKitParser implements FrameworkParserInterface {
         return chunks;
     }
 }
-const t = new SvelteKitParser();
-t.parseFile('./+page.svelte', sveltekitPatterns).then(res => Bun.write("./out.json", JSON.stringify(res, null, 2)));
