@@ -43,7 +43,7 @@ cp .env.example .env
 # Required
 OPENAI_API_KEY=your_openai_api_key
 GITHUB_SECRET_KEY=your_key_to_authenticate_to_the_backend
-GITHUB_ACCESS_TOKEN=give_github_access_to_read_the_repo
+GH_ACCESS_TOKEN=give_github_access_to_read_the_repo
 GEMINI_API_KEY=your_gemeni_api_key
 
 # Optional
@@ -74,11 +74,13 @@ curl -X POST http://localhost:3000/update-codebase \
 ## API Endpoints
 
 ### Health Check
+
 ```http
 GET /
 ```
 
 ### Update Codebase
+
 Clones and processes a repository, creating embeddings for code chunks.
 
 ```http
@@ -94,6 +96,7 @@ x-github-secret: your_secret
 ```
 
 ### Review Code
+
 Reviews code changes against the processed codebase.
 
 ```http
@@ -113,6 +116,7 @@ x-github-secret: your_secret
 ```
 
 **Single file format:**
+
 ```json
 {
   "changedCode": "function example() { ... }",
@@ -192,12 +196,14 @@ jobs:
 Add framework-specific knowledge to improve reviews:
 
 1. **Create knowledge files** in `src/prompts/`:
+
    ```
    src/prompts/svelte5.txt
    src/prompts/react19.txt
    ```
 
 2. **Format with sections:**
+
    ```markdown
    # Svelte 5 Knowledge
    
@@ -209,6 +215,7 @@ Add framework-specific knowledge to improve reviews:
    ```
 
 3. **Update parser** to include new files:
+
    ```typescript
    const knowledgeFiles = [
      'svelte5.txt',
@@ -219,7 +226,7 @@ Add framework-specific knowledge to improve reviews:
 ## Supported File Types
 
 - **Code**: `.ts`, `.js`, `.svelte`
-- **Styles**: `.css` 
+- **Styles**: `.css`
 - **Config**: `.json`, `.yml`
 - **Docs**: `.md`, `.txt`, `.html`
 
@@ -251,6 +258,7 @@ docker run -d \
 ## Configuration
 
 ### File Paths
+
 ```typescript
 {
   codebaseRoot: process.env.CODEBASE_ROOT || process.cwd(),
@@ -263,6 +271,7 @@ docker run -d \
 ```
 
 ### Parsing Options
+
 ```typescript
 {
   supportedFileTypes: ['ts', 'svelte', 'js', 'json', 'css', 'html', 'md', 'txt', 'yml'],
@@ -277,6 +286,7 @@ docker run -d \
 ## Usage Examples
 
 ### Manual Code Review
+
 ```bash
 curl -X POST http://localhost:3000/review \
   -H "Content-Type: application/json" \
@@ -289,6 +299,7 @@ curl -X POST http://localhost:3000/review \
 ```
 
 ### Update Codebase
+
 ```bash
 curl -X POST http://localhost:3000/update-codebase \
   -H "Content-Type: application/json" \
@@ -312,12 +323,14 @@ The API provides detailed feedback including:
 ## Development
 
 ### Local Development
+
 ```bash
 bun install
 bun run dev
 ```
 
 ### Testing
+
 ```bash
 # Test health endpoint
 curl http://localhost:3000/
@@ -334,15 +347,19 @@ curl -X POST http://localhost:3000/review \
 ### Common Issues
 
 **"ENOENT: no such file or directory, open 'schema.json'"**
+
 - Run `/update-codebase` endpoint first to initialize embeddings
 
 **"input is a required property"**
+
 - OpenAI API issue, check if `changedCode` is undefined in your request
 
 **"API request failed (curl exit: 22)"**  
+
 - HTTP 4xx/5xx error, check API logs and authentication
 
 **"No files to review"**
+
 - Check file size limits (1MB max) and supported file types
 
 ## Contributing

@@ -15,7 +15,7 @@ export class GitClient {
     private token: string;
 
     constructor(token?: string) {
-        this.token = token || Bun.env.GITHUB_ACCESS_TOKEN!;
+        this.token = token || Bun.env.GH_ACCESS_TOKEN!;
     }
 
     async cloneRepository(repoUrl: string, branch: string = 'main'): Promise<string> {

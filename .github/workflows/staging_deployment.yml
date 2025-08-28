@@ -31,6 +31,14 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
+    - name: Create .env file
+      run: |
+        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+        echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+        echo "GITHUB_SECRET_KEY=${{ secrets.GITHUB_SECRET_KEY }}" >> .env
+        echo "GH_ACCESS_TOKEN=${{ secrets.GH_ACCESS_TOKEN }}" >> .env
+        echo "GOOGLE_MODEL=${{ secrets.GOOGLE_MODEL }}" >> .env
+
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
       env:

@@ -33,7 +33,7 @@ app.post('/update-codebase', async (c) => {
       return c.json({ success: false, error: 'repoUrl is required' }, 400);
     }
 
-    const accessToken = token || Bun.env.GITHUB_ACCESS_TOKEN
+    const accessToken = token || Bun.env.GH_ACCESS_TOKEN
     const gitClient = new GitClient(accessToken);
     const repoPath = await gitClient.cloneRepository(repoUrl, branch);
 
