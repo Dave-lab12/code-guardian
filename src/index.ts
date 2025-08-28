@@ -5,7 +5,7 @@ import { logger } from 'hono/logger';
 import { Config } from './config/config';
 import { githubAuth } from './middleware/auth';
 
-import { CodeReviewer, PromptLoader, Parser } from './lib'
+import { CodeReviewer, PromptLoader, Parser, GitClient } from './lib'
 import { ChromaManager } from './lib/chroma';
 import { SvelteKitParser, sveltekitPatterns } from './frameworks/sveltekit';
 
@@ -28,14 +28,14 @@ app.post('/update-codebase', async (c) => {
   try {
     const body = await c.req.json();
     const { repoUrl, branch = 'main', token } = body;
-
+    const config = Config.getInstance();
     if (!repoUrl) {
       return c.json({ success: false, error: 'repoUrl is required' }, 400);
     }
 
-    // const gitClient = new GitClient();
-    // const accessToken = token || Bun.env.GITHUB_ACCESS_TOKEN
-    // const repoPath = await gitClient.cloneRepository(repoUrl, branch, accessToken);
+    const gitClient = new GitClient();
+    const accessToken = token || Bun.env.GITHUB_ACCESS_TOKEN
+    const repoPath = await gitClient.cloneRepository(repoUrl, branch, accessToken);
 
     const chromaManager = new ChromaManager();
     await chromaManager.initializeCollection();
@@ -43,9 +43,13 @@ app.post('/update-codebase', async (c) => {
 
     const parser = new Parser(chromaManager);
 
-    parser.register(sveltekitPatterns, new SvelteKitParser())
+    parser.register(sveltekitPatterns, new SvelteKitParser(), {
+      knowledge: [
+        `${config.get().paths.promptsDir}/svelte5.txt`
+      ]
+    })
 
-    const chunksCreated = await parser.chunkCodebase("/app/tmp/repo-1756205646640")//repoPath);
+    const chunksCreated = await parser.chunkCodebase(repoPath)
 
     console.log(`Chunks created: ${chunksCreated}`);
 
@@ -56,7 +60,7 @@ app.post('/update-codebase', async (c) => {
     });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('Error:', error);
     return c.json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to update codebase'

@@ -6,13 +6,13 @@ export interface BaseChunk {
     metadata?: Record<string, any>;
 }
 
-export type ChunkGranularity = 'file' | "script" | 'function' | 'component' | 'page' | 'class' | 'method' | "module" | "package" | "project" | "workspace" | "stylesheet" | "template" | "theme" | "widget" | "chunk";
+export type ChunkGranularity = 'file' | "document" | "script" | 'function' | 'component' | 'page' | 'class' | 'method' | "module" | "package" | "project" | "workspace" | "stylesheet" | "template" | "theme" | "template-partial" | "widget" | "chunk";
 
 
 export interface PatternConfig {
     pattern: string;
     semantic: string;
-    type:string;
+    type: string;
     description: string;
     priority: number;
     metadata: Record<string, any>;
