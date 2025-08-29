@@ -1,30 +1,46 @@
 # Code Review API
 
-An intelligent code review system powered by llms that provides contextual feedback on pull requests. Built with Bun, Hono, and OpenAI embeddings.
-
-> **Note:** This project is currently heavily optimized for SvelteKit projects, with specialized parsing for Svelte components, SvelteKit routing patterns (+page, +layout), and built-in Svelte 5 knowledge base.
+An intelligent, framework-agnostic code review system powered by LLMs that provides contextual feedback on pull requests and responds to developer commands. Built with Bun, Hono, ChromaDB, and OpenAI embeddings.
+> **Note:** This project is under heavy development, so you may encounter many bugs.
 
 ## Features
 
-- **Contextual Code Analysis** - Uses vector embeddings to find relevant code patterns and context
-- **GitHub Actions Integration** - Automatically reviews PRs with detailed feedback
-- **Knowledge Base Support** - Includes framework-specific knowledge (Svelte 5, etc.)
-- **Multi-language Support** - TypeScript, JavaScript, Svelte, CSS, Markdown, and more
-- **Fast & Efficient** - Built with Bun for maximum performance
-- **Docker Ready** - Easy deployment with persistent storage
+- **AI Assistant** - Interactive code assistant via `@starscream` mentions for fixes, optimizations, refactoring, and more
+- **Contextual Code Analysis** - Uses vector embeddings to find relevant code patterns and context across any codebase
+- **Framework Agnostic** - Supports any programming language and framework with extensible parsing system
+- **GitHub Integration** - Automatic PR reviews and webhook-based assistant responses
+- **Knowledge Base Support** - Includes framework-specific knowledge bases (Svelte 5, React, etc.)
+- **Multi-language Support** - TypeScript, JavaScript, Python, Go, Rust, Svelte, React, Vue, and more
+- **High Performance** - Built with Bun and ChromaDB for maximum speed and efficiency
+- **Docker Ready** - Easy deployment with persistent vector storage
 
 ## Architecture
 
 ```mermaid
-graph LR
-    A[GitHub PR] --> B[GitHub Actions]
+graph TB
+    A[GitHub PR/Issue] --> B[Webhook]
     B --> C[Code Review API]
-    C --> D[Code Chunker]
-    C --> E[Vector Search]
-    C --> F[OpenAI Review]
-    D --> G[Embeddings]
-    E --> G
-    F --> H[PR Comment]
+    
+    C --> D[Framework Parser Registry]
+    D --> E[SvelteKit Parser]
+    D --> F[React Parser]
+    D --> G[Generic Parser]
+    
+    C --> H[ChromaDB Vector Store]
+    C --> I[AI Assistant]
+    
+    I --> J[Gemini 2.5 Flash]
+    I --> K[Prompt Templates]
+    K --> L[Fix Prompts]
+    K --> M[Optimize Prompts]
+    K --> N[Test Prompts]
+    
+    I --> O[GitHub API]
+    O --> P[PR Creation]
+    O --> Q[Issue Comments]
+    
+    H --> R[Vector Search]
+    R --> I
 ```
 
 ## Quick Start
@@ -32,8 +48,8 @@ graph LR
 ### 1. Clone and Setup
 
 ```bash
-git clone https://github.com/Dave-lab12/pr-review-bot/
-cd pr-review-bot
+git clone https://github.com/Dave-lab12/code-guardian/
+cd code-guardian
 cp .env.example .env
 ```
 
@@ -42,20 +58,21 @@ cp .env.example .env
 ```env
 # Required
 OPENAI_API_KEY=your_openai_api_key
-GITHUB_SECRET_KEY=your_key_to_authenticate_to_the_backend
-GH_ACCESS_TOKEN=give_github_access_to_read_the_repo
-GEMINI_API_KEY=your_gemeni_api_key
+GOOGLE_API_KEY=your_gemini_api_key
+GITHUB_SECRET_KEY=your_webhook_secret
+GH_ACCESS_TOKEN=github_token_for_api_access
 
 # Optional
+CHROMA_URL=http://localhost:8000
+NODE_ENV=production
 CHUNKS_DIR=/contents/mindplex-chunks
 TEMP_DIR=/tmp
-NODE_ENV=production
 ```
 
 ### 3. Run with Docker
 
 ```bash
-# Development
+# Development (includes ChromaDB)
 docker-compose --profile dev up
 
 # Production
@@ -74,14 +91,13 @@ curl -X POST http://localhost:3000/update-codebase \
 ## API Endpoints
 
 ### Health Check
-
 ```http
 GET /
 ```
+Returns service status and timestamp.
 
 ### Update Codebase
-
-Clones and processes a repository, creating embeddings for code chunks.
+Clones and processes a repository, creating embeddings for all code chunks.
 
 ```http
 POST /update-codebase
@@ -96,7 +112,6 @@ x-github-secret: your_secret
 ```
 
 ### Review Code
-
 Reviews code changes against the processed codebase.
 
 ```http
@@ -115,25 +130,101 @@ x-github-secret: your_secret
 }
 ```
 
-**Single file format:**
+### Webhook (AI Assistant)
+Handles GitHub webhooks for `@starscream` mentions in issues and PRs.
 
-```json
+```http
+POST /webhook
+Content-Type: application/json
+x-github-event: issue_comment
+x-github-secret: your_secret
+
 {
-  "changedCode": "function example() { ... }",
-  "fileName": "src/app.ts",
-  "description": "Add new feature"
+  "action": "created",
+  "issue": { ... },
+  "comment": { "body": "@starscream fix this bug" },
+  "repository": { "full_name": "user/repo" }
 }
 ```
 
-## GitHub Actions Integration
+## 🤖 AI Assistant Usage
 
-### Setup
+The AI assistant responds to `@starscream` mentions in GitHub issues and pull requests:
 
-1. **Add Repository Secrets:**
-   - `REVIEW_API_URL` - Your API endpoint
-   - `REVIEW_SECRET` - Your GitHub secret key
+### Fix Issues
+```
+@starscream fix this memory leak in auth.ts
+@starscream fix the validation bug in user registration
+```
 
-2. **Add Workflow File** (`.github/workflows/code-review.yml`):
+### Optimize Performance
+```
+@starscream optimize these database queries
+@starscream improve the performance of this component
+```
+
+### Add Tests
+```
+@starscream add tests for the authentication module
+@starscream create unit tests for this function
+```
+
+### Refactor Code
+```
+@starscream refactor this to use better patterns
+@starscream clean up this messy component
+```
+
+### Add Documentation
+```
+@starscream document this API endpoint
+@starscream add JSDoc comments to this function
+```
+
+### General Help
+```
+@starscream help me implement user roles
+@starscream how should I structure this feature?
+```
+
+## GitHub Integration Setup
+
+### 1. Webhook Configuration
+
+**Option A: Repository Settings UI**
+1. Go to Settings → Webhooks → Add webhook
+2. Payload URL: `https://your-api-url.com/webhook`
+3. Content type: `application/json`
+4. Secret: Your `GITHUB_SECRET_KEY`
+5. Events: Issue comments, Issues, Pull requests
+
+**Option B: API Setup**
+```bash
+curl -X POST \
+  https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/hooks \
+  -H "Authorization: Bearer $GITHUB_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "web",
+    "config": {
+      "url": "https://your-api-url.com/webhook",
+      "content_type": "json",
+      "secret": "'$GITHUB_SECRET_KEY'"
+    },
+    "events": ["issue_comment", "issues", "pull_request"],
+    "active": true
+  }'
+```
+
+### 2. Repository Secrets
+
+Add these secrets in your repository settings:
+- `REVIEW_API_URL` - Your API endpoint
+- `REVIEW_SECRET` - Your GitHub secret key
+
+### 3. PR Review Workflow
+
+Create `.github/workflows/code-review.yml`:
 
 ```yaml
 name: Code Review
@@ -191,53 +282,108 @@ jobs:
           $review"
 ```
 
-## Knowledge Files
+## Framework Support
 
-Add framework-specific knowledge to improve reviews:
+The system uses a plugin-based architecture to support any framework or language:
 
-1. **Create knowledge files** in `src/prompts/`:
+### Built-in Framework Parsers
 
-   ```
-   src/prompts/svelte5.txt
-   src/prompts/react19.txt
-   ```
+**SvelteKit Parser:**
+- Page routes (`+page.svelte`, `+page.server.ts`)
+- Layout components (`+layout.svelte`)
+- API endpoints (`+server.ts`)
+- Load functions and actions
 
-2. **Format with sections:**
+**Generic Parser:**
+- TypeScript/JavaScript functions and classes
+- Type definitions and interfaces
+- Configuration files
+- Documentation files
 
-   ```markdown
-   # Svelte 5 Knowledge
-   
-   ## Runes
-   Svelte 5 introduces runes for state management...
-   
-   ## Components  
-   New component syntax and features...
-   ```
+### Adding New Framework Support
 
-3. **Update parser** to include new files:
+1. **Create a parser class:**
+```typescript
+export class ReactParser implements FrameworkParser {
+  async parseFile(filePath: string, config: PatternConfig): Promise<ParseResult[]> {
+    // Parse React components, hooks, etc.
+  }
+}
+```
 
-   ```typescript
-   const knowledgeFiles = [
-     'svelte5.txt',
-     'react19.txt'  // Add new files here
-   ];
-   ```
+2. **Define patterns:**
+```typescript
+export const reactPatterns: FrameworkPatterns = {
+  components: {
+    pattern: "**/*.{jsx,tsx}",
+    type: "component",
+    semantic: "ui-component",
+    priority: 10
+  },
+  hooks: {
+    pattern: "**/use*.{js,ts}",
+    type: "hook",
+    semantic: "logic-hook",
+    priority: 9
+  }
+};
+```
+
+3. **Register the parser:**
+```typescript
+parser.register(reactPatterns, new ReactParser(), {
+  knowledge: ['src/prompts/react19.txt']
+});
+```
+
+## Knowledge Base System
+
+Add framework-specific knowledge to improve AI responses:
+
+### 1. Create Knowledge Files
+
+```
+src/prompts/svelte5.txt     # Svelte 5 runes, components
+src/prompts/react19.txt     # React 19 features, patterns
+src/prompts/nextjs14.txt    # Next.js app router, server components
+src/prompts/vue3.txt        # Vue 3 composition API
+```
+
+### 2. Format with Sections
+
+```markdown
+# React 19 Knowledge
+
+## Server Components
+React Server Components run on the server and stream UI to the client...
+
+## Concurrent Features
+React 19 includes automatic batching, suspense improvements...
+
+## Best Practices
+- Use server components for data fetching
+- Client components for interactivity
+- Proper error boundaries
+```
+
+### 3. Register with Parser
+
+```typescript
+parser.register(reactPatterns, new ReactParser(), {
+  knowledge: ['src/prompts/react19.txt']
+});
+```
 
 ## Supported File Types
 
-- **Code**: `.ts`, `.js`, `.svelte`
-- **Styles**: `.css`
-- **Config**: `.json`, `.yml`
-- **Docs**: `.md`, `.txt`, `.html`
+- **Frontend**: `.js`, `.ts`, `.jsx`, `.tsx`, `.vue`, `.svelte`
+- **Backend**: `.py`, `.go`, `.rs`, `.php`, `.rb`, `.java`, `.cs`
+- **Styles**: `.css`, `.scss`, `.sass`, `.less`, `.styl`
+- **Config**: `.json`, `.yaml`, `.yml`, `.toml`, `.env`
+- **Docs**: `.md`, `.txt`, `.rst`, `.html`
+- **Data**: `.sql`, `.graphql`, `.proto`
 
-## Deployment
-
-### Render.com
-
-1. **Connect your repository**
-2. **Set environment variables**
-3. **Enable persistent disk** (10GB recommended)
-4. **Deploy**
+## Deployment Options
 
 ### Docker Production
 
@@ -245,139 +391,206 @@ Add framework-specific knowledge to improve reviews:
 # Build
 docker build -t code-review-api .
 
-# Run with volume
+# Run with ChromaDB
 docker run -d \
   --name code-review \
   -p 3000:3000 \
-  -v ./contents:/contents \
   -e OPENAI_API_KEY=your_key \
+  -e GOOGLE_API_KEY=your_gemini_key \
   -e GITHUB_SECRET_KEY=your_secret \
+  -e CHROMA_URL=http://chroma:8000 \
   code-review-api
+```
+
+### Render.com
+
+1. **Connect repository** to Render
+2. **Set environment variables** in dashboard
+3. **Enable persistent disk** (10GB recommended)
+4. **Deploy** - automatic builds on push
+
+### Self-Hosted
+
+```bash
+# Install dependencies
+bun install
+
+# Set up ChromaDB
+docker run -d -p 8000:8000 --name chroma chromadb/chroma
+
+# Run the API
+bun run dev
 ```
 
 ## Configuration
 
 ### File Paths
-
 ```typescript
 {
   codebaseRoot: process.env.CODEBASE_ROOT || process.cwd(),
-  chunksDir: process.env.CHUNKS_DIR || '/contents/mindplex-chunks',
-  schemaFile: 'schema.json',
-  embeddingsFile: 'embeddings.json',
+  chunksDir: process.env.CHUNKS_DIR || 'contents/mindplex-chunks',
   promptsDir: 'src/prompts',
   tempDir: process.env.TEMP_DIR || '/tmp'
 }
 ```
 
-### Parsing Options
-
+### Vector Database
 ```typescript
 {
-  supportedFileTypes: ['ts', 'svelte', 'js', 'json', 'css', 'html', 'md', 'txt', 'yml'],
-  embedding: {
-    model: 'text-embedding-3-small',
-    batchSize: 100,
-    rateLimitDelay: 1000
-  }
+  chromaUrl: process.env.CHROMA_URL || 'http://localhost:8000',
+  embeddingModel: 'text-embedding-3-small',
+  collection: 'code_chunks',
+  batchSize: 100
+}
+```
+
+### AI Models
+```typescript
+{
+  reviewModel: 'gemini-2.5-flash',
+  embeddingModel: 'text-embedding-3-small',
+  maxTokens: 4096,
+  temperature: 0.1
 }
 ```
 
 ## Usage Examples
 
 ### Manual Code Review
-
 ```bash
 curl -X POST http://localhost:3000/review \
   -H "Content-Type: application/json" \
   -H "x-github-secret: your_secret" \
   -d '{
-    "changedCode": "function handleLogin(email: string, password: string) { const response = fetch(\"/api/auth\", { method: \"POST\", body: JSON.stringify({ email, password }) }); return response.json(); }",
-    "fileName": "auth.ts",
-    "description": "Added login function"
+    "changedCode": "const users = await db.users.findMany(); return users.map(u => ({ id: u.id, name: u.name }));",
+    "fileName": "api/users.ts",
+    "description": "Optimize user fetching"
   }'
 ```
 
-### Update Codebase
-
+### Test Assistant Locally
 ```bash
-curl -X POST http://localhost:3000/update-codebase \
+curl -X POST http://localhost:3000/webhook \
   -H "Content-Type: application/json" \
+  -H "x-github-event: issue_comment" \
   -H "x-github-secret: your_secret" \
   -d '{
-    "repoUrl": "https://github.com/your/repo",
-    "branch": "main"
+    "action": "created",
+    "issue": {
+      "number": 123,
+      "title": "Performance issue",
+      "body": "API is slow"
+    },
+    "comment": {
+      "body": "@starscream optimize this API endpoint"
+    },
+    "repository": {
+      "full_name": "test/repo"
+    }
   }'
 ```
 
-## Review Output
+## Review & Assistant Output
 
-The API provides detailed feedback including:
+### Code Review Features
+- **Critical Issues** - Security vulnerabilities, bugs
+- **Performance** - Optimization opportunities, bottlenecks
+- **Best Practices** - Framework patterns, conventions
+- **Maintainability** - Code organization, readability
+- **Testing** - Missing tests, edge cases
 
-- **Critical Issues** - Bugs, security vulnerabilities
-- **High Priority** - Performance, best practices  
-- **Medium Issues** - Code quality, maintainability
-- **Low Priority** - Style, optimization suggestions
-- **Positive Notes** - Well-written code acknowledgment
+### Assistant Capabilities
+- **Bug Fixes** - Generates actual code fixes for issues
+- **Performance Optimization** - Suggests and implements improvements
+- **Test Generation** - Creates comprehensive test suites
+- **Code Refactoring** - Restructures code for better patterns
+- **Documentation** - Adds JSDoc, README, API docs
+- **Architecture Advice** - High-level design recommendations
 
 ## Development
 
 ### Local Development
-
 ```bash
+# Install dependencies
 bun install
+
+# Start ChromaDB
+docker run -d -p 8000:8000 chromadb/chroma
+
+# Run in development mode
 bun run dev
 ```
 
 ### Testing
-
 ```bash
-# Test health endpoint
+# Health check
 curl http://localhost:3000/
 
-# Test with sample code
+# Test code review
 curl -X POST http://localhost:3000/review \
   -H "Content-Type: application/json" \
   -H "x-github-secret: test" \
   -d '{"changedCode": "console.log(\"test\")", "fileName": "test.js"}'
+
+# Test assistant
+curl -X POST http://localhost:3000/webhook \
+  -H "Content-Type: application/json" \
+  -H "x-github-event: issue_comment" \
+  -H "x-github-secret: test" \
+  -d '{"action": "created", "comment": {"body": "@starscream help"}, "issue": {"number": 1}, "repository": {"full_name": "test/repo"}}'
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-**"ENOENT: no such file or directory, open 'schema.json'"**
+**ChromaDB Connection Failed**
+- Ensure ChromaDB is running: `docker ps | grep chroma`
+- Check CHROMA_URL environment variable
+- Verify network connectivity
 
-- Run `/update-codebase` endpoint first to initialize embeddings
+**"No embeddings found"**
+- Run `/update-codebase` endpoint first
+- Check if repository cloning succeeded
+- Verify supported file types in your repo
 
-**"input is a required property"**
+**Assistant not responding**
+- Check GitHub webhook delivery in repo settings
+- Verify `x-github-secret` header matches
+- Ensure `@starscream` mention format is correct
 
-- OpenAI API issue, check if `changedCode` is undefined in your request
-
-**"API request failed (curl exit: 22)"**  
-
-- HTTP 4xx/5xx error, check API logs and authentication
-
-**"No files to review"**
-
-- Check file size limits (1MB max) and supported file types
+**High memory usage**
+- Adjust batch size in configuration
+- Consider chunking large repositories
+- Monitor ChromaDB memory usage
 
 ## Contributing
 
 1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+2. Create feature branch (`git checkout -b feature/new-parser`)
+3. Add framework parser with tests
+4. Update documentation
+5. Submit pull request
+
+### Adding Framework Support
+
+1. **Create parser** in `src/frameworks/your-framework/`
+2. **Define patterns** for file matching
+3. **Add knowledge base** in `src/prompts/`
+4. **Write tests** for parser functionality
+5. **Update README** with framework info
 
 ## Tech Stack
 
-- **Runtime**: Bun
-- **Framework**: Hono
-- **Embedding**: OpenAI Embeddings
-- **AI**: Gemini 2.5-flash
-- **Database**: File-based (JSON + text chunks)
-- **Deployment**: Docker
-- **CI/CD**: GitHub Actions
+- **Runtime**: [Bun](https://bun.sh) - Fast JavaScript runtime
+- **Framework**: [Hono](https://hono.dev) - Lightweight web framework  
+- **Vector DB**: [ChromaDB](https://www.trychroma.com) - Vector database for embeddings
+- **Embeddings**: [OpenAI](https://openai.com) - text-embedding-3-small
+- **AI Model**: [Google Gemini](https://ai.google.dev) - Gemini 2.5 Flash
+- **GitHub**: [GitHub API](https://docs.github.com/en/rest) - Webhooks and PR automation
+- **Deployment**: [Docker](https://docker.com) - Containerized deployment
 
----
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
