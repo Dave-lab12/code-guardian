@@ -108,7 +108,7 @@ app.post('/review', async (c) => {
 
     const chromaManager = new ChromaManager();
     await chromaManager.initializeCollection();
-    const relevantChunks = await chromaManager.queryChunks(codeToReview, 10);
+    const relevantChunks = await chromaManager.queryChunks(codeToReview, 5);
 
     const reviewer = new CodeReviewer();
     const contextString = reviewer.formatContext(relevantChunks);
