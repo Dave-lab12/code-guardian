@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { SearchResult } from '../types';
 import { Config } from '../config/config';
 import { PromptLoader } from './promptLoader';
@@ -108,33 +108,33 @@ export class CodeReviewer {
         });
 
         const responseSchema = {
-            type: "object",
+            type: Type.OBJECT,
             properties: {
                 action: {
-                    type: "string",
+                    type: Type.STRING,
                     enum: ["create_pr", "comment_only", "needs_info", "error"]
                 },
                 message: {
-                    type: "string",
+                    type: Type.STRING,
                     description: "Main response message from Starscream"
                 },
                 title: {
-                    type: "string",
+                    type: Type.STRING,
                     description: "PR title (only for create_pr action)"
                 },
                 description: {
-                    type: "string",
+                    type: Type.STRING,
                     description: "PR description (only for create_pr action)"
                 },
                 questions: {
-                    type: "array",
+                    type: Type.ARRAY,
                     items: {
-                        type: "string"
+                        type: Type.STRING
                     },
                     description: "List of questions (only for needs_info action)"
                 },
                 analysis: {
-                    type: "string",
+                    type: Type.STRING,
                     description: "Detailed analysis or explanation"
                 }
             },
@@ -144,21 +144,8 @@ export class CodeReviewer {
         try {
             const response = await this.ai.models.generateContent({
                 model: Bun.env.GOOGLE_MODEL || 'gemini-2.5-flash',
-                contents: [
-                    {
-                        role: 'user',
-                        parts: [
-                            {
-                                text: `${prompt}\n\nIMPORTANT: You must respond with valid JSON only. Your response should match this exact schema:\n${JSON.stringify(responseSchema, null, 2)}\n\nDo not include any text outside the JSON object.`
-                            }
-                        ]
-                    }
-                ],
-                generationConfig: {
-                    temperature: 0.1,
-                    topP: 0.8,
-                    topK: 40,
-                    maxOutputTokens: 2048,
+                contents: `${prompt}\n\nIMPORTANT: You must respond with valid JSON only. Your response should match the required schema.`,
+                config: {
                     responseMimeType: "application/json",
                     responseSchema: responseSchema
                 }
@@ -180,7 +167,25 @@ export class CodeReviewer {
                 console.error('Failed to parse structured response:', parseError);
                 console.error('Raw response was:', result);
 
+                const jsonMatch = result.match(/```json\s*\n([\s\S]*?)\n\s*```/);
+                if (jsonMatch) {
+                    try {
+                        const extractedJson = jsonMatch[1].trim();
+                        console.log('Extracted JSON from markdown:', extractedJson);
+                        const structured = JSON.parse(extractedJson);
+                        console.log('Successfully parsed extracted JSON:', structured);
 
+                        return {
+                            type: 'structured',
+                            data: structured,
+                            raw: result
+                        };
+                    } catch (extractError) {
+                        console.error('Failed to parse extracted JSON:', extractError);
+                    }
+                }
+
+                // Fallback response
                 return {
                     type: 'structured',
                     data: {
@@ -194,7 +199,6 @@ export class CodeReviewer {
         } catch (error) {
             console.error("Error generating structured assistant response:", error);
 
-
             return {
                 type: 'structured',
                 data: {
@@ -206,6 +210,7 @@ export class CodeReviewer {
             };
         }
     }
+
 
     private detectCommandType(command: string): string {
         const lowerCommand = command.toLowerCase();
