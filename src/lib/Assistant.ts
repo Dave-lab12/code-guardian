@@ -25,7 +25,7 @@ export class AssistantService {
 
             const context = await this.buildContext(command, webhookData);
 
-            const response = await this.reviewer.generateAssistantResponse(command, context);
+            const response = await this.reviewer.generateStructuredAssistantResponse(command, context);
 
             await this.handleResponse(response, webhookData);
 
@@ -63,45 +63,65 @@ export class AssistantService {
         };
     }
 
+
+
     private async handleResponse(response: AssistantResponse, webhookData: any): Promise<void> {
         const { repository, issue } = webhookData;
 
-        let parsedResponse = response;
-        if (response && response.type === 'text' && typeof response.data === 'string') {
-            const jsonMatch = response.data.match(/```json\n([\s\S]*?)\n```/);
-            if (jsonMatch) {
-                try {
-                    const parsedData = JSON.parse(jsonMatch[1]);
-                    console.log('Parsed JSON from markdown:', parsedData);
-                    parsedResponse = {
-                        type: 'structured',
-                        data: parsedData
-                    };
-                } catch (error) {
-                    console.error('Failed to parse JSON from markdown:', error);
-                }
-            }
-        }
+        console.log('Handling structured response:', {
+            responseType: response?.type,
+            action: response?.data?.action,
+            hasMessage: !!response?.data?.message
+        });
 
-
-        if (parsedResponse.type === 'structured' && parsedResponse.data.action) {
-            switch (parsedResponse.data.action) {
+        if (response && response.type === 'structured' && response.data && response.data.action) {
+            switch (response.data.action) {
                 case 'create_pr':
-                    await this.createPRResponse(parsedResponse.data, repository, issue);
+                    await this.createPRResponse(response.data, repository, issue);
                     break;
                 case 'comment_only':
-                    await this.createCommentResponse(parsedResponse.data, repository, issue);
+                    await this.createCommentResponse(response.data, repository, issue);
                     break;
                 case 'needs_info':
-                    await this.requestMoreInfo(parsedResponse.data, repository, issue);
+                    await this.requestMoreInfo(response.data, repository, issue);
+                    break;
+                case 'error':
+                    await this.createErrorResponse(response.data, repository, issue);
                     break;
                 default:
-                    await this.createCommentResponse(parsedResponse.data, repository, issue);
+                    console.log('Unknown action, defaulting to comment response');
+                    await this.createCommentResponse(response.data, repository, issue);
             }
         } else {
-            await this.createCommentResponse(parsedResponse, repository, issue);
+            console.log('Invalid response structure, creating fallback response');
+            await this.createFallbackResponse(response, repository, issue);
         }
     }
+
+    private async createErrorResponse(data: any, repository: any, issue: any): Promise<void> {
+        try {
+            await this.gitClient.replyToIssue(
+                repository.full_name,
+                issue.number,
+                `⚠️ ${data.message}\n\n${data.analysis ? `Details: ${data.analysis}` : ''}`
+            );
+        } catch (error) {
+            console.error('Failed to create error response:', error);
+        }
+    }
+
+    private async createFallbackResponse(response: any, repository: any, issue: any): Promise<void> {
+        try {
+            await this.gitClient.replyToIssue(
+                repository.full_name,
+                issue.number,
+                `🤖 I processed your request but encountered an issue with the response format. Please try rephrasing your command.`
+            );
+        } catch (error) {
+            console.error('Failed to create fallback response:', error);
+        }
+    }
+
     private async createPRResponse(data: any, repository: any, issue: any): Promise<void> {
         const prUrl = await this.gitClient.createPullRequest(repository.full_name, {
             title: data.title,

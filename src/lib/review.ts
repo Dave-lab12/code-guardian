@@ -88,6 +88,125 @@ export class CodeReviewer {
         }
     }
 
+    async generateStructuredAssistantResponse(command: string, context: AssistantContext): Promise<AssistantResponse> {
+        console.log(`🤖 Processing assistant command with structured output: ${command}`);
+
+        const promptType = this.detectCommandType(command);
+        const promptPath = this.config.getFullPath(
+            this.config.get().paths.promptsDir,
+            `/assistant/${promptType}.txt`
+        );
+
+        const prompt = await PromptLoader.loadPrompt(promptPath, {
+            command,
+            issueTitle: context.issue.title,
+            issueBody: context.issue.body || '',
+            prFiles: context.prFiles?.map(f => `${f.filename}:\n${f.patch || f.raw_url}`).join('\n') || '',
+            context: context.relevantChunks.map(c =>
+                `${c.metadata?.type || c.type}: ${c.content?.slice(0, 300)}`
+            ).join('\n')
+        });
+
+        const responseSchema = {
+            type: "object",
+            properties: {
+                action: {
+                    type: "string",
+                    enum: ["create_pr", "comment_only", "needs_info", "error"]
+                },
+                message: {
+                    type: "string",
+                    description: "Main response message from Starscream"
+                },
+                title: {
+                    type: "string",
+                    description: "PR title (only for create_pr action)"
+                },
+                description: {
+                    type: "string",
+                    description: "PR description (only for create_pr action)"
+                },
+                questions: {
+                    type: "array",
+                    items: {
+                        type: "string"
+                    },
+                    description: "List of questions (only for needs_info action)"
+                },
+                analysis: {
+                    type: "string",
+                    description: "Detailed analysis or explanation"
+                }
+            },
+            required: ["action", "message"]
+        };
+
+        try {
+            const response = await this.ai.models.generateContent({
+                model: Bun.env.GOOGLE_MODEL || 'gemini-2.5-flash',
+                contents: [
+                    {
+                        role: 'user',
+                        parts: [
+                            {
+                                text: `${prompt}\n\nIMPORTANT: You must respond with valid JSON only. Your response should match this exact schema:\n${JSON.stringify(responseSchema, null, 2)}\n\nDo not include any text outside the JSON object.`
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    temperature: 0.1,
+                    topP: 0.8,
+                    topK: 40,
+                    maxOutputTokens: 2048,
+                    responseMimeType: "application/json",
+                    responseSchema: responseSchema
+                }
+            });
+
+            const result = response.text || '{}';
+            console.log('Raw structured LLM response:', result);
+
+            try {
+                const structured = JSON.parse(result);
+                console.log('Successfully parsed structured response:', structured);
+
+                return {
+                    type: 'structured',
+                    data: structured,
+                    raw: result
+                };
+            } catch (parseError) {
+                console.error('Failed to parse structured response:', parseError);
+                console.error('Raw response was:', result);
+
+
+                return {
+                    type: 'structured',
+                    data: {
+                        action: 'error',
+                        message: 'I encountered an issue processing your request. Please try again.',
+                        analysis: `Command: ${command}`
+                    },
+                    raw: result
+                };
+            }
+        } catch (error) {
+            console.error("Error generating structured assistant response:", error);
+
+
+            return {
+                type: 'structured',
+                data: {
+                    action: 'error',
+                    message: 'I encountered a technical issue and cannot process your request right now.',
+                    analysis: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+                },
+                raw: ''
+            };
+        }
+    }
+
     private detectCommandType(command: string): string {
         const lowerCommand = command.toLowerCase();
 
