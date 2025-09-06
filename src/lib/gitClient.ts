@@ -63,10 +63,13 @@ export class GitClient {
     }
 
     async createPullRequest(repoName: string, options: CreatePROptions): Promise<string> {
+
         const branchName = options.branch || `starscream/${options.type || 'fix'}-${Date.now()}`;
 
-
         const defaultBranch = await this.getDefaultBranch(repoName);
+
+        await this.createBranch(repoName, branchName, defaultBranch);
+
 
         const response = await fetch(`https://api.github.com/repos/${repoName}/pulls`, {
             method: 'POST',
@@ -88,6 +91,7 @@ export class GitClient {
         }
 
         const pr = await response.json();
+
         return pr.html_url;
     }
 
