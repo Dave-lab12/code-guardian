@@ -18,7 +18,7 @@ app.use('*', githubAuth);
 app.get('/', async (c) => {
   return c.json({
     status: 'healthy',
-    service: 'Code Review API',
+    service: 'Code Guardian API',
     timestamp: new Date().toISOString()
   });
 });
