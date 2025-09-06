@@ -66,22 +66,40 @@ export class AssistantService {
     private async handleResponse(response: AssistantResponse, webhookData: any): Promise<void> {
         const { repository, issue } = webhookData;
 
-        if (response.type === 'structured' && response.data.action) {
-            switch (response.data.action) {
+        let parsedResponse = response;
+        if (response && response.type === 'text' && typeof response.data === 'string') {
+            const jsonMatch = response.data.match(/```json\n([\s\S]*?)\n```/);
+            if (jsonMatch) {
+                try {
+                    const parsedData = JSON.parse(jsonMatch[1]);
+                    console.log('Parsed JSON from markdown:', parsedData);
+                    parsedResponse = {
+                        type: 'structured',
+                        data: parsedData
+                    };
+                } catch (error) {
+                    console.error('Failed to parse JSON from markdown:', error);
+                }
+            }
+        }
+
+
+        if (parsedResponse.type === 'structured' && parsedResponse.data.action) {
+            switch (parsedResponse.data.action) {
                 case 'create_pr':
-                    await this.createPRResponse(response.data, repository, issue);
+                    await this.createPRResponse(parsedResponse.data, repository, issue);
                     break;
                 case 'comment_only':
-                    await this.createCommentResponse(response.data, repository, issue);
+                    await this.createCommentResponse(parsedResponse.data, repository, issue);
                     break;
                 case 'needs_info':
-                    await this.requestMoreInfo(response.data, repository, issue);
+                    await this.requestMoreInfo(parsedResponse.data, repository, issue);
                     break;
                 default:
-                    await this.createCommentResponse(response.data, repository, issue);
+                    await this.createCommentResponse(parsedResponse.data, repository, issue);
             }
         } else {
-            await this.createCommentResponse(response, repository, issue);
+            await this.createCommentResponse(parsedResponse, repository, issue);
         }
     }
     private async createPRResponse(data: any, repository: any, issue: any): Promise<void> {
